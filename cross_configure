@@ -1,0 +1,71 @@
+#!/bin/sh -e
+IWD=`(cd ..;pwd)`
+#if [ ! -d $IWD/sysroots ]; then
+#  echo "$IWD/sysroots not found!!!"
+#  echo "Please either install sysroots in $IWD/sysroots, or link $IWD/sysroots to your installed sysroots."
+#  echo "A pre-populated sysroots may be downloaded from http://openjdk.linaro.org/sysroots/sysroots_140918.tar.xz"
+#  exit 1
+#fi
+
+IWD= $SYSROOT/..
+mkdir -p /tmp/oe_45434e/jenkins-setup/build/tmp-eglibc
+mkdir -p /tmp/oe_45434e/jenkins-setup/build/tmp-glibc
+ln -f -s $SYSROOT /tmp/oe_45434e/jenkins-setup/build/tmp-eglibc/
+ln -f -s $SYSROOT /tmp/oe_45434e/jenkins-setup/build/tmp-glibc/
+
+
+#export STRINGS="aarch64-oe-linux-strings"
+#export CC="aarch64-oe-linux-gcc"
+#export OBJCOPY="aarch64-oe-linux-objcopy"
+#export LD="aarch64-oe-linux-ld"
+#export CCLD="aarch64-oe-linux-gcc"
+#export PKG_CONFIG_LIBDIR="$IWD/sysroots/genericarmv8//usr/lib/pkgconfig"
+#export PKG_CONFIG_DISABLE_UNINSTALLED="yes"
+#export CPP="aarch64-oe-linux-gcc -E "
+#export STRIP="aarch64-oe-linux-strip"
+#export PKG_CONFIG_SYSROOT_DIR="$IWD/sysroots/genericarmv8"
+#export RANLIB="aarch64-oe-linux-ranlib"
+#export CXX="aarch64-oe-linux-g++"
+#export OBJDUMP="aarch64-oe-linux-objdump"
+#export NM="aarch64-oe-linux-nm"
+#export AS="aarch64-oe-linux-as"
+#export AR="aarch64-oe-linux-ar"
+
+export STRINGS="${CROSS}-strings"
+export CC="${CROSS}-gcc"
+export OBJCOPY="${CROSS}-objcopy"
+export LD="${CROSS}-ld"
+export CCLD="${CROSS}-gcc"
+export PKG_CONFIG_LIBDIR="$SYSROOT/usr/lib/pkgconfig"
+export PKG_CONFIG_DISABLE_UNINSTALLED="yes"
+export CPP="${CROSS}-gcc -E "
+export STRIP="${CROSS}-strip"
+export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
+export RANLIB="${CROSS}-ranlib"
+export CXX="${CROSS}-g++"
+export OBJDUMP="${CROSS}-objdump"
+export NM="${CROSS}-nm"
+export AS="${CROSS}-as"
+export AR="${CROSS}-ar"
+
+
+sh ./configure --disable-headful  \
+	       --with-debug-level=release   \
+                --with-extra-cflags="-D__AARCH64EB__"     \
+                --with-extra-cxxflags="-D__AARCH64EB__"  \
+		--with-jvm-variants=server  \
+                --with-sys-root=$SYSROOT    \
+                --enable-unlimited-crypto   \
+                --openjdk-target=aarch64-linux-gnu \
+		--with-stdc++lib=dynamic \
+		--with-cups-include=$SYSROOT/usr/include \
+                --with-freetype-lib=$SYSROOT/lib  \
+                --with-freetype-include=$SYSROOT/usr/include/freetype2  \
+                --prefix=/home/vasco/work/openjdk/jdk8u.aarch64/install  \
+                --with-stdc++lib=dynamic  \
+                --x-includes=$SYSROOT/usr/include  \
+                --x-libraries=$SYSROOT/lib  \
+                --with-alsa-include=$SYSROOT/usr/include  \
+                --with-alsa-lib=$SYSROOT/lib
+
+

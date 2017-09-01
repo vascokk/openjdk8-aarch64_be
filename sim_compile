@@ -1,0 +1,19 @@
+#!/bin/sh -e
+# ensure the sim lib has been built
+if [ ! -f ../simulator/libarmsim.so ] ; then
+  (cd ../simulator ; make)
+fi
+
+# ensure the hsdis lib has been built
+
+if [ ! -f hotspot/src/share/tools/hsdis/build/linux-amd64/hsdis-amd64.so ] ; then
+  (export BINUTILS=`cd .. ; pwd`/binutils ; cd hotspot/src/share/tools/hsdis ; make BUILD_AARCH64=true)
+fi
+
+make STRIP_POLICY=no_strip POST_STRIP_CMD="" LOG="debug" BUILTIN_SIM=true images
+
+# ensure hsdis lib is installed
+if [ ! -f build/linux-aarch64-normal-client-slowdebug/images/j2sdk-image/jre/lib/aarch64/hsdis-aarch64.so ] ; then
+  cp hotspot/src/share/tools/hsdis/build/linux-amd64/hsdis-amd64.so \
+     build/linux-aarch64-normal-client-slowdebug/images/j2sdk-image/jre/lib/aarch64/hsdis-aarch64.so
+fi

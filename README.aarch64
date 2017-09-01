@@ -1,0 +1,450 @@
+       Obtaining, Building and Running the OpenJDK AArch64 Port
+
+Overview
+--------
+
+The current AArch64 port of OpenJDK allows execution of a template
+interpreter implemented using JITted AArch64 code and a C1 JIT
+compiler which generates AArch64 code. It does not yet include a
+complete implementation of the C2 JIT compiler.
+
+In the absence of available ARMv8 hardware, the AArch64 JVM has to
+employ a simulator to execute the AArch64 code. There are two modes of
+operation.
+
+The first is to run the ported JVM compiled for x86 hardware and Linux
+and use our small AArch64 simulator to execute AArch64 code. With this
+option the JVM operates in 'mixed mode'. The compiled C++ code which
+makes up the bulk of the JVM core is compiled to native x86
+binary/libraries.  However, all JITted code is in AArch64 machine code
+format; this includes a small number of runtime stub routines as well
+as the template interpreter code and the code output by the C1/C2
+JITs.
+
+The JVM employs upon a small (and only partially complete) functional
+simulator to execute the JITted AArch64 code. When a transition is
+made from VM code into JITted code the JVM switches execution into the
+simulator code (running on a separate stack from the caller thread)
+and uses the simulator to execute the JITed code. The JITted code
+locates its stack frames in the same stack as the compiled VM code and
+employs the same data layouts as the compiled x86 code. If JITted code
+calls back into x86 code the simulator reverts execution back to a
+frame on the original stack executing native x86 code once again. So,
+execution of JITted AArch64 code happens transparently when running
+the x86 binary.
+
+It is easy to debug execution of the small AArch64 simulator under
+gdb. A suite of gdb commands has been provided which makes it possible
+to trace, break and step through JITted code either at the AArch64
+instruction or at the bytecode level. This includes automatic
+disassembly of AArch64 instructions and bytecodes.
+
+The second mode of operation is to cross-compile the ported JVM to
+AArch64 executables/libraries and then run it on ARM's Foundation
+model simulator. This option requires downloading both the ARM's
+simulator and an ARM Linux distribution (root tree) onto your host
+system. This mode is slow and has limited debug support but it
+exercises the full target stack of JITted code, compiled JVM and
+operating system code similarly to how it will operate when real
+hardware becomes available.
+
+Obtaining the AArch64 Sources Using Mercurial
+---------------------------------------------
+
+The sources for the JVM port are contained in the porting project's
+mercurial repository on the OpenJDK HG server
+
+To obtain a copy of the OpenJDK source code, execute the following
+command in a root directory of your choice:
+
+  $ hg clone http://hg.openjdk.java.net/aarch64-port/jdk8/ jdk8
+
+The jdk8 tree needs to be populated with the necessary subrepos by
+executing script get_source.sh (command 'bash get_source.sh).
+
+If you wish to use the small AArch64 simulator and its debug
+capabilities, download and populate two other mercurial repos:
+
+  $ hg clone http://hg.code.sf.net/p/smallaarch64sim/code simulator 
+
+  $ hg clone http://hg.code.sf.net/p/binutilsaarch64/code binutils
+
+Note, however, that the configure scripts for the simulator build will
+automatically download these repositories if they are not present.
+
+n.b. if you download by hand you must ensure all 3 repos sit side by
+side under the same root directory.
+
+Once you have populated the subrepos of jdk8 you will find the
+AArch64-specific code in subdirectories
+
+  jdk8/hotspot/src/cpu/aarch64
+
+and
+
+  jdk8/hotspot/src/os_cpu/linux_aarch64/
+
+Note however that some of the shared code and the make scripts contain
+AArch64 specific code. All such code is guarded by conditional tests
+which depend upon the variables TARGET_ARCH_aarch64 and BUILTIN_SIM
+being defined or upon variable SRCARCH. The former is only the JVM
+code is configured to build for AArch64 and the latter only defined
+when configured to build using the small AArch64 simulator.
+
+As a sanity check it should be possible to build a standard x86/Linus
+JVM from the jdk8 tree by following the normal OpenJDK build process.
+
+Using the small AArch64 simulator
+=================================
+
+Building on the small AArch64 simulator
+---------------------------------------
+
+To configure a small AArch64 simulator build, execute the following
+command in your top-level download (jdk8) directory:
+
+  $ bash sim_configure
+
+This should automatically download the simulator and binutils repos,
+locating them in ../simulator and ./binutils, respectively.
+
+If the configure script tells you that you are missing packages then
+download and install them and try again.
+
+To build the JVM for execution using the small AArch64 simulator,
+execute the following command in your top-level download (jdk8)
+directory:
+
+  $ bash sim_compile
+
+This should automatically compile the code in ../simulator producing
+shared library ../simulator/libarmsim.so
+
+This should also automatically compile the AArch64 JVM disassembler
+library located in hotspot/src/share/tools/hsdis, using the binutils
+code in ../binutils to provide the AArch64-specific decompile routines.
+The resulting library should be installed in the generated j2sdk image
+tree as file jre/lib/aarch64/hsdis-aarch64.so.
+
+n.b the configure script assumes you have a JDK7 release installed
+under
+
+  /usr/lib/jvm/java-1.7.0-openjdk.x86_64
+
+You may need to modify the script to specify the correct location.
+
+After a few cups of coffee you should find the AArch64 JVM image under
+your build directory
+
+  $ ls -C1 build/linux-aarch64-normal-client-slowdebug/images/j2sdk-image
+  ASSEMBLY_EXCEPTION
+  bin
+  demo
+  include
+  jre
+  lib
+  LICENSE
+  man
+  release
+  sample
+  src.zip
+  THIRD_PARTY_README
+
+Running the JVM using the small AArch64 simulator
+-------------------------------------------------
+
+You can run the JVM merely by executing the binaries under your
+j2sdk-image directory, For example, assuming you have a copy of
+Hello.java in your jdk8 directory
+
+  $ cd jdk8
+  $ javac Hello.java
+  $ build/linux-aarch64-normal-client-slowdebug/j2sdk-image/bin/java Hello
+  Hello world!
+  $ time build/linux-aarch64-normal-client-slowdebug/j2sdk-image/bin/javac Hello.java
+
+  real	1m20.217s
+  user	1m20.227s
+  sys	0m0.056s
+
+Running under gdb
+-----------------
+
+The simulator directory contains a script file which you can source
+from gdb in order to obtain access to a set of commands which allow
+you to trace, break, step, disassemble and inspect the processor state
+when executing AArch64 code in the simulator.
+
+  $ cd jdk8
+  $ gdb build/linux-aarch64-normal-client-slowdebug/j2sdk-image/bin/java
+   . . .
+  (gdb) source ../simulator/simgdbinit
+  (gdb) help simtrace
+
+  simtrace [0|1]
+
+  simtrace can be used to display or set the status of instruction level
+  tracing. when tracing is enabled every ARM instruction executed by the
+  simulator will be disassembled and displayed as it is executed. when
+  tracing is disabled only the pending instruction at a break point or
+  after a (single- or multi-)step will be disassembled and displayed.
+
+  with no arguments simtrace displays the current status, either 0 if
+  instruction tracing is disabled or 1 if it is enabled.  tracing is
+  enabled by executing 'simtrace 1' and disabled by executing 'simtrace 0'
+
+(gdb) simtrace
+No symbol table is loaded.  Use the "file" command.
+(gdb) 
+
+Note that you can still use all the normal gdb commands to break step
+though and inspect the state of the compiled C++ JVM code.
+
+All the commands provided in the script start with the prefix
+sim. They are all documented (read the file for details or type help
+command in gdb to read the help text online). Also, they can all be
+identified using auto-completion (type the prefix and hit tab).
+
+Unfortunately, all the sim commands are implemented by calling out to
+methods implemented by class Simulator so you cannot use them until
+the program has actually started executing. A good place to start is
+to enable an automatic breakpoint whenever a thread first executes an
+AArch64 instruction. To do this type the following commands into a
+shell
+
+  $ echo  "simstopnew 1" > ~/.simgdbrc
+
+Now when you run the program it will stop wen the initial thread first
+starts executing AArch64 code
+
+  (gdb) run Hello
+  Starting program: .../jdk8/build/linux-amd64-debug/j2sdk-image/bin/java 
+  . . .
+  [New Thread 0x7ffff5b90700 (LWP 15476)]
+  [15476] Loaded disassembler from .../jdk8/buildlinux-aarch64-normal-client-slowdebug/j2sdk-image/jre/lib/amd64/hsdis-aarch64.so
+  [Disassembling for mach='aarch64']
+    0x00007fffee07a6a0: stp	xfp, xlr, [sp,#-16]!
+
+  Program received signal SIGUSR1, User defined signal 1.
+  [Switching to Thread 0x7ffff6f40700 (LWP 2848)]
+  AArch64Simulator::doBreak (this=0x7ffff00943c0) at debug.cpp:450
+  Missing separate debuginfos, use: debuginfo-install glibc-2.15-58.fc17.x86_64 libgcc-4.7.2-2.fc17.x86_64 libstdc++-4.7.2-2.fc17.x86_64
+  (gdb) 
+
+You can step to the next instruction by executing simstep
+
+  (gdb) simstep
+  [15476]   0x00007fffee07a6a4: mov	xfp, sp
+
+  Program received signal SIGUSR1, User defined signal 1.
+  AArch64Simulator::doBreak (this=0x7ffff00943c0) at debug.cpp:450
+  (gdb) 
+
+You can step to a bytecode boundary by using simstepbc
+
+  (gdb) simstepbc
+  [15476]   METHOD:   java.lang.Object.<clinit>()V
+  [15476]   BYTECODE: 0 aconst_null
+  [15476]   0x00007fffee089cf8: movz	x0, #0x0
+
+  Program received signal SIGUSR1, User defined signal 1.
+  AArch64Simulator::doBreak (this=0x7ffff00943c0) at debug.cpp:450
+  (gdb) 
+
+So, it appears we have entered the class initializer for class Object
+which is the first Java method which gets executed during the
+bootstrap. If you switch on instruction trace you can see the
+instructions which execute a specific bytecode followed by the
+threading code which reads the next bytecode and jumps to the address
+in template interpreter's dispatch table implementing that bytecode
+
+  (gdb) simtrace 1
+  simtrace = 1
+  (gdb) simstepbc
+  [15476]   0x00007fffee089cfc: ldrb	wscratch1, [xbcp,#1]!
+  [15476]   0x00007fffee089d00: add	wscratch2, wscratch1, #0x700
+  [15476]   0x00007fffee089d04: ldr	xscratch2, [xdispatch,w9,uxtw #3]
+  [15476]   0x00007fffee089d08: br	xscratch2
+  [15476]   0x00007fffee08bd10: str	x0, [xesp,#-8]!
+  [15476]   0x00007fffee08bd14: b	0x00007fffee08bd34
+  [15476]   0x00007fffee08bd34: notify	bcstart
+  [15476]   METHOD:   java.lang.Object.<clinit>()V
+  [15476]   BYTECODE: 1 astore_0
+  [15476]   0x00007fffee08bd38: ldr	x0, [xesp],#8
+
+Program received signal SIGUSR1, User defined signal 1.
+AArch64Simulator::doBreak (this=0x7ffff00943c0) at debug.cpp:450
+(gdb) 
+
+The aconst_null bytecode only requires the one movxz instruction which
+places the constant 0 in register x0 (top of stack cache register).
+The epilog uses an ldrb to read the next bytecode (updating the
+pointer in register rbcp) and then offsets relative to the dispatch
+table address in register rdispatch to execute the following
+astore_0.
+
+Note that after executing the aconst_null the top of stack value 0 was
+cached in x0. The dispatch adddress calculated by the epilog uses
+offset 0x700 identifying an template which includes a str to writeback
+this value to the top of the expression stack (identified by register
+resp). If the previous template had not used the x0 cache then it
+woudl have meployed a different offset to pick code which omitted this
+writeback.
+
+We can check the state of registers using the simgreg command
+
+  (gdb) simgreg r0
+  warning: Using non-standard conversion to match method AArch64Simulator::simGReg to supplied arguments
+    c_rarg0 :                0x0
+  (gdb)
+
+We can also see the whole register state
+
+  (gdb) simgreg
+    c_rarg0 :                0x0	  c_rarg1 :     0x7ffff6f3f388
+    c_rarg2 :                0x0	  c_rarg3 :                0x0
+    c_rarg4 :     0x7fffee083eb0	  c_rarg5 :     0x7ffff6f3f310
+    c_rarg6 :     0x7fff00000000	  c_rarg7 :     0x7ffff000af88
+  rscratch1 :               0x4b	rscratch2 :     0x7fffee08bd10
+        r10 :     0x7ffff6f3df80	      r11 :                0x0
+        r12 :                0x0	      r13 :                0x0
+        r14 :                0x0	      r15 :                0x0
+        r16 :                0x0	      r17 :                0x0
+        r18 :                0x0	      r19 :                0x0
+        esp :     0x7ffff6f3ee78	rdispatch :     0x7ffff7d96840
+       rbcp :     0x7ffff5fae5f1	  rmethod :     0x7ffff5faedc0
+    rlocals :     0x7ffff6f3ef78	rmonitors :                0x0
+     rcpool :     0x7ffff605d1b0	rheapbase :                0x0
+    rthread :     0x7ffff000af88	      rfp :     0x7ffff6f3eec0
+         lr :     0x7fffee07a7ac	       sp :     0x7ffff6f3ee40
+       cpsr :               -ZC-	     fpsr :       ------------
+         pc :     0x7fffee08bd38
+  (gdb) 
+
+Since we are running Hello let's place a break point at Hello.main
+
+  (gdb) simtrace 0
+  simtrace = 0
+  (gdb) simstopnew 0
+  simstopnew = 0
+  (gdb) simbreakbc "Hello.main" 0
+  0 :	"Hello.main" 0
+  (gdb) c
+  Continuing.
+  [New Thread 0x7ffff5372700 (LWP 15484)]
+  [New Thread 0x7ffff5271700 (LWP 15485)]
+ [New Thread 0x7ffff5170700 (LWP 15486)]
+  [15476]   METHOD:   Hello.main([Ljava/lang/String;)V
+  [15476]   BYTECODE: 0 getstatic 2 <java/lang/System.out/Ljava/io/PrintStream;> 
+  [15476]   0x00007fffee08ff08: ldrh	w3, [xbcp,#1]
+
+  Program received signal SIGUSR1, User defined signal 1.
+  [Switching to Thread 0x7ffff6f40700 (LWP 15476)]
+  AArch64Simulator::doBreak (this=0x7ffff0094530) at debug.cpp:450
+  (gdb) 
+
+We can look at the stack using command simbt
+
+  (gdb) simbt 1
+    0x00007fffee08ff08: ldrh	w3, [xbcp,#1]
+         pc :     0x7fffee08ff08	      *pc :         0x784012c3
+         sp :     0x7ffff6f3f670	      rfp :     0x7ffff6f3f6e0
+         lr :     0x7fffee07a7ac
+     status :       STATUS_READY	    error :         ERROR_NONE
+  0: Hello.main([Ljava/lang/String;)V:00 0 getstatic 2 <java/lang/System.out/Ljava/io/PrintStream;> 
+  (gdb) 
+
+We can also look at the stack frame contents using simprint
+
+  (gdb) simprint 2
+    0x00007fffee08ff08: ldrh	w3, [xbcp,#1]
+         pc :     0x7fffee08ff08	      *pc :         0x784012c3
+         sp :     0x7ffff6f3f670	      rfp :     0x7ffff6f3f6e0
+         lr :     0x7fffee07a7ac
+     status :       STATUS_READY	    error :         ERROR_NONE
+  0: Hello.main([Ljava/lang/String;)V:00 0 getstatic 2 <java/lang/System.out/Ljava/io/PrintStream;> 
+        0x7ffff6f3f670:	    0x7f01f6f3f6b0
+        0x7ffff6f3f678:	        0xf005bb48
+        0x7ffff6f3f680:	        0xe9c010c0
+        0x7ffff6f3f688:	        0xf005bb48
+        0x7ffff6f3f690:	    0x7ffff6f3f6b0
+        0x7ffff6f3f698:	    0x7ffff6f3fb31
+        0x7ffff6f3f6a0:	    0x7ffff6f3f6a0 interpreter_frame_initial_sp
+        0x7ffff6f3f6a8:	    0x7ffff62ad340 interpreter_frame_bcx
+        0x7ffff6f3f6b0:	    0x7ffff6f3f708 interpreter_frame_locals
+        0x7ffff6f3f6b8:	    0x7ffff62ad400 interpreter_frame_cache
+        0x7ffff6f3f6c0:	               0x0 interpreter_frame_mdx
+        0x7ffff6f3f6c8:	    0x7ffff62ad360 interpreter_frame_method
+        0x7ffff6f3f6d0:	               0x0 interpreter_frame_last_sp
+        0x7ffff6f3f6d8:	    0x7ffff6f3f708 interpreter_frame_sender_sp
+        0x7ffff6f3f6e0:	    0x7ffff6f3f7a0 link
+        0x7ffff6f3f6e8:	    0x7fffee07a7ac return pc
+  1: <unknown method> 0x7ffff6f3f6e8
+        0x7ffff6f3f6f0:	    0x7ffff6f3e710
+        0x7ffff6f3f6f8:	    0x7ffff62ad310
+        0x7ffff6f3f700:	       0x6f6f3f740
+        0x7ffff6f3f708:	        0xf005bb48
+        0x7ffff6f3f710:	               0x0
+        0x7ffff6f3f718:	               0x0
+        0x7ffff6f3f720:	               0x0
+        . . .
+  (gdb) 
+
+The frame includes slots where the values cached in registers are
+written back. These sit below the area used for the expression stack
+and for marshalling call arguments. initial_sp points usually points
+to itself, identifying the point where stacked expression values
+begin. However in a method which employs synchronization the expression
+stack sits on top of a block of monitor objects and initial_sp points
+to the top of this block.
+
+Notice that the locals pointer for the current frame points back to a
+data area allocated below the frame pointer at the top of the previous
+frame. If the method receives N parameter words then the first N
+locals slots contain the values stacked before making the call.
+
+Using ARM's Foundation model simulator
+======================================
+
+Setting up ARM's Foundation model simulator
+-------------------------------------------
+
+Full details of how to obtain and set up ARM's Foundation model simulator and
+how to to the AArch64 JVM for use on the Foundation model are provided at
+
+  http://people.linaro.org/~edward.nevill/aarch64/README-cross-compile.html
+
+The next few sections briefly summarise the steps needed to configure,
+compile and run on the Foundation model.
+
+Building for ARM's Foundation model simulator
+---------------------------------------------
+
+To configure an ARM Foundation model simulator build execute the following
+command in your top-level download (jdk8) directory
+
+  $ bash cross_configure
+
+You need to have a AArch64 Linux root tree installed on your system
+and linked as ./sysroot. The script will fail if this is not present.
+(Read the error messages or the script for instructions on how to
+obtain and install an AArch64 Linux tree).
+
+To build the JVM for execution using ARM's simulator execute the
+following command in your top-level download (jdk8) directory
+
+  $ bash cross_compile
+
+After a few cups of coffee you should find that the AArch64 JVM sdk
+and jre images have been installed into your sysroot tree (they should
+appear as /j2sdk-image and /j2re-image)
+
+Running the JVM using ARM's Foundation model simulator
+------------------------------------------------------
+
+To exercise the resulting image you have to boot Linux on the
+simulator and then at the # prompt type in
+
+  # ./jsdk-image/bin/javac Queens.java
+  # ./j2re-image/bin/java Queens
+

@@ -1,0 +1,15 @@
+#!/bin/sh -e
+# IWD=`(cd ..;pwd)`
+#	if [ ! -d $IWD/sysroots ]; then
+#	  echo "$IWD/sysroots not found!!!"
+#	  echo "Please either install sysroots in $IWD/sysroots, or link $IWD/sysroots to your installed sysroots."
+#          echo "A pre-populated sysroots may be downloaded from http://openjdk.linaro.org/sysroots/sysroots_140918.tar.xz"
+#	  exit 1
+#	fi
+IWD=$SYSROOT/..	
+mkdir -p /tmp/oe_45434e/jenkins-setup/build/tmp-eglibc
+mkdir -p /tmp/oe_45434e/jenkins-setup/build/tmp-glibc
+ln -f -s $SYSROOT /tmp/oe_45434e/jenkins-setup/build/tmp-eglibc/
+ln -f -s $SYSROOT /tmp/oe_45434e/jenkins-setup/build/tmp-glibc/
+export ALT_SDT_H= $SYSROOT/usr/include/sys/sdt.h  #$IWD/sysroots/genericarmv8/usr/include/sys/sdt.h
+make STRIP_POLICY=no_strip POST_STRIP_CMD="" LOG=debug images

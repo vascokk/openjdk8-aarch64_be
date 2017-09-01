@@ -1,0 +1,18 @@
+# These tests also fail on x86
+gc/arguments/TestMinInitialErgonomics.java generic-all
+gc/g1/TestGCLogMessages.java generic-all
+runtime/classFileParserBug/TestEmptyBootstrapMethodsAttr.java generic-all
+runtime/finalStatic/FinalStatic.java generic-all
+runtime/lambda-features/InvokespecialInterface.java generic-all
+runtime/lambda-features/TestConcreteClassWithAbstractMethod.java generic-all
+#---------------------------------------------------------------------
+# This test is bogus. It issues a "jmap -heap" command. However the -heap
+# option is not supported on the JDK8 vsn of jmap. The reason it seems
+# to work on x86 is that it issues the jmap command without any path
+# which means that it is testing the default installed jmap (usually jdk7)
+# instead of testing the jmap in the JDK8 it is supposed to be testing.
+gc/metaspace/CompressedClassSpaceSizeInJmapHeap.java generic-all
+#---------------------------------------------------------------------
+# This test is bogus. It issues a jmap with the -F options which is not
+# supported in JDK8.
+serviceability/sa/jmap-hashcode/Test8028623.java generic-all

@@ -1,0 +1,249 @@
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"></head><body>
+<h2>Cross compile build for aarch64</h2>
+<p>This page describes the steps necessary to perform a cros compile build
+for aarch64 and how to run the resultant images under the Foundation model
+(ARM's freely available aarc64 simulator).
+
+</p><p>The steps basically comprise the following
+
+</p><dl>
+<dt>Step 1</dt><dd><a href="#Sysroots">Obtain an aarch64 sysroots</a><br>
+</dd><dt>Step 2</dt><dd><a href="#BuildOpenJDK">Configure and compile OpenJDK</a>
+</dd><dt>Step 3</dt><dd><a href="#GetModel">Download the Foundation model</a>
+</dd><dt>Step 4</dt><dd><a href="#RootFS">Obtain a kernel and root filesystem</a><br>
+</dd><dt>Step 5</dt><dd><a href="#CopyOpenJDK">Copy your newly built OpenJDK image to the root filesystem</a>
+</dd><dt>Step 6</dt><dd><a href="#BootModel">Boot the Foundation model and run your OpenJDK image</a>
+</dd></dl>
+
+<h3><a name="Sysroots"></a>Step 1: Obtain an aarch64 sysroots</h3>
+
+<p>The sysroots directory contains all the cross compilation tools, aarch64
+libraries and headers you will need to perform a cross compile build of
+OpenJDK for aarch64.
+
+</p><p>For convenience I have provided a pre-built sysroots at
+<a href="http://people.linaro.org/%7Eedward.nevill/aarch64/sysroots.tar.gz">
+http://people.linaro.org/~edward.nevill/aarch64/sysroots.tar.gz</a>
+
+</p><p>Note that the above sysroots will only work if you are building on a 64-bit
+x86 linux machine. If you are using anything else you will need to rebuild
+the sysroots as the cross compilation tools will not work on your macine.
+
+</p><p>Download the sysroots.tar.gz file above and untar it into the directory containing the jdk8 repository so that the <b>jdk8</b> directory and <b>sysroots</b> directory are at the same level.
+
+</p><pre><code><b>
+cd &lt;directory containing jdk8&gt;
+tar xfz sysroots.tar.gz
+ls
+</b>
+jdk8	sysroots	sysroots.tar.gz
+</code></pre>
+
+<h3><a name="BuildOpenJDK"></a>Step 2: Configure and compile OpenJDK</h3>
+
+<p>Two shell scripts have been provided to allow you to quickstart building OpenJDK.
+
+</p><dl>
+<dt>cross_configure</dt><dd>Configure for a cross compiled release build of OpenJDK
+</dd><dt>cross_compile</dt><dd>Build the j2re and j2sdk images for the current configuration
+</dd></dl>
+
+<p>In theory all that should be necessary is
+
+</p><pre><code><b>
+cd jdk8
+sh ./cross_configure
+sh ./cross_compile 2&gt;&amp;1 | tee compile.log
+</b></code></pre>
+
+<p>This should build a client compiler (C1) release version of OpenJDK which may be found in <i>build/linux-aarch64-normal-client-release/images/j2sdk-image</i>
+
+</p><p>Note: At the end of the build you may see an warning like
+
+</p><pre>WARNING: You have the following ALT_ variables set:
+ALT_SDT_H=/home/ed/work/aa64/sysroots/genericarmv8/usr/include/sys/sdt.h
+ALT_ variables are deprecated and will be ignored. Please clean your environment.
+</pre>
+
+<p>This warning may be ignored. The ALT_SDT_H <b>is</b> required and is not ignored!
+
+</p><h4>Changing build/config options</h4>
+
+<p>To build a debug version edit the <i>cross_configure</i> file and change <b>--with-debug-level=release</b>
+to one of <b>--with-debug-level=fastdebug</b> or <b>--with-debug-level=slowdebug</b>
+
+</p><p>To build a Zero release change <b>--with-jvm-variants=client</b> to <b>--with-jvm-variants=zero</b>. You can
+also specify <b>--with-jvm-variants=server</b>, however the server (C2) compiler is still under development
+at the time of writing.
+
+</p><p>If you specify a new configuration such as <b>--with-debug-level=slowdebug</b> you may get the following
+error when you run the <i>cross_compile</i> script.
+
+</p><pre>No CONF given, but more than one configuration found in /home/ed/work/aarch64_tip/jdk8//build.
+Available configurations:
+* linux-aarch64-normal-client-slowdebug
+* linux-aarch64-normal-client-release
+Please retry building with CONF=<config pattern=""> (or SPEC=<specfile>)
+</specfile></config></pre>
+
+<p>To select which configuation you wish to build specify CONF=... before the <i>cross_compile</i> script. For example:
+
+</p><pre><code><b>
+CONF=linux-aarch64-normal-client-slowdebug sh ./cross_compile 2&gt;&amp;1 | tee compile.log
+</b></code></pre>
+
+<p>Some other useful options you can specify to configure are:
+
+</p><dl>
+<dt>--enable-debug-symbols</dt><dt>--disable-debug-symbols
+</dt><dd>Enable/disable generation of debug symbols
+</dd><dt>--enable-zip-debug-info</dt><dt>--disable-zip-debug-info
+</dt><dd>Enable/disable zipping of debug-info files
+</dd></dl>
+
+<h3><a name="GetModel"></a>Step 3: Download the Foundation model</h3>
+
+Download the foundation model from ARM's website at
+
+<a href="http://www.arm.com/products/tools/models/fast-models/foundation-model.php">
+http://www.arm.com/products/tools/models/fast-models/foundation-model.php
+</a>
+
+<p>At the bottom of the page under <i>Get started with Foundation Models</i> 
+click on <i>download now</i>. You will be asked to login. If you have 
+prevously registered for an ARM account login, otherwise you will need 
+to check the license terms, ensure that you are happy with them and 
+register for an ARM account.
+
+</p><p>After logging in above, on the right hand side of the next page under 
+<i>ARM V8 Foundation Model</i> click <i>Download Now</i>.
+
+</p><p>The name of the file I downloaded was <i>FM000-KT-00035-r0p8-48rel5.tgz</i>. 
+Obviously the name of the file you download may differ depending on the 
+version number you download, but if you want to download exactly the 
+same version number you can look for it under "Display older versions".
+
+</p><p>Untar this archive. It will create a directory 'Foundation_v8pkg'. cd to 
+this directory
+
+</p><pre><code><b>
+tar xfz FM000-KT-00035-r0p8-48rel5.tgz
+cd Foundation_v8pkg
+</b></code></pre>
+
+<h3><a name="RootFS"></a>Step 4: Download a kernel and root filesystem</h3>
+
+<p>For convenience I have provided a pre-built kernel and pre-populated rootfs at
+
+</p><ul>
+<li><a href="http://people.linaro.org/%7Eedward.nevill/aarch64/kernel.axf">
+http://people.linaro.org/~edward.nevill/aarch64/kernel.axf</a>
+</li><li><a href="http://people.linaro.org/%7Eedward.nevill/aarch64/rootfs.ext2.gz">
+http://people.linaro.org/~edward.nevill/aarch64/rootfs.ext2.gz</a>
+</li></ul>
+
+<p>Download both these files into the <i>Foundation_v8pkg</i> directory created above
+and decompress the <i>rootfs.ext2.gz</i>
+
+</p><pre><code><b>
+gzip -d rootfs.ext2.gz
+</b></code></pre>
+
+<h3><a name="CopyOpenJDK"></a>Step 5: Copy your OpenJDK image into your rootfs</h3>
+
+<p>First of all you must mount the root file system. Then copy the OpenJDK image into
+the home directory of root. Then unmount the filesystem.
+
+</p><pre><code><b>
+sudo mount -o loop rootfs.ext2 /mnt
+sudo cp -r .../jdk8/build/linux-aarch64-normal-client-release/images/j2sdk-image /mnt/home/root
+sudo umount /mnt
+</b></code></pre>
+
+<h3><a name="BootModel"></a>Step 6: Boot the Foundation model and run OpenJDK</h3>
+
+<p>To boot the Foundation model enter
+
+</p><pre><code><b>
+./models/Linux64_GCC-4.1/Foundation_v8 --image kernel.axf --block-device rootfs.ext2 --network nat
+</b></code></pre>
+
+<p>An xterm window will open and Linux will boot in the aarch64 simulator. After a short
+while you will get the root '#' prompt. In the root directory you should find the
+<i>j2sdk-image</i> directory you copied earlier in addition to a <i>JavaApps</i> directory
+which contains some sample Java applications.
+
+</p><pre><code><b>
+ls</b>
+JavaApps     j2sdk-image
+</code></pre>
+
+
+
+<p>The following are brief instructions on running each of the provided sample applications.
+In each case you can specify the following options.
+
+</p><dl>
+<dt>-Xint</dt><dd>Run everything under the template interpreter
+</dd><dt>-Xcomp</dt><dd>Attempt to compile every single method
+</dd><dt>-Xmixed</dt><dd>The default. Mixed interpretation and compilation
+</dd><dt>-XX:+PrintCompilation</dt><dd>Print a message as each method is compiled
+</dd></dl>
+
+<pre><code><b>
+cd JavaApps/LinPack
+../../../j2sdk-image/bin/java Linpack</b>
+Mflops/s: 5.012  Time: 0.14 secs  Norm Res: 1.43  Precision: 2.220446049250313E-16
+<br>
+<b>cd JavaApps/bm-1.1
+ ../../j2sdk-image/bin/java -classpath dist/fullset/bench1.jar org.eembc.grinderbench.CmdlineWrapper -r 1 -m 1</b>
+Copyright (c) 2003-2005, EDN Embedded Microprocessor Benchmark Consortium (EEMBC), Inc.
+Parallel.....................8019
+kXML.........................4451
+PNG decoding.................8928
+Chess........................3564
+Crypto.......................4330
+---------------------------------
+<br>
+<b>cd JavaApps/dry
+../../j2sdk-image/bin/java dhry</b>
+dhrystone (static): 10 iterations of 30000 executions..........
+total time: 3310ms
+Result: 90634 dhrystone/sec.
+<br>
+<b>cd JavaApps/ecm
+../../j2sdk-image/bin/java CaffeineMarkEmbeddedApp</b>
+Sieve score = 1574 (98)
+Loop score = 2413 (2017)
+Logic score = 4102 (0)
+String score = 1135 (708)
+Float score = 1609 (185)
+Method score = 1905 (166650)
+Overall score = 1945
+</code></pre>
+
+<p>The following programs require you to set the DISPLAY variable within
+ the simulator to the IP address of your X server. For example
+
+</p><pre><code><b>
+export DISPLAY=192.168.1.249:0.0
+</b></code></pre>
+
+<p>You will also need to ensure that your X server is capable of accepting a remote connection. Also note that
+if you want to specify the -X options on the appletviewer command you will need to precede them with -J. For
+example "-J-Xcomp -J-XX:+PrintCompilation"
+
+</p><pre><code><b>
+cd JavaApps/galaxians
+../../j2sdk-image/bin/appletviewer Galaxians.html
+<br>
+cd JavaApps/scared
+../../j2sdk-image/bin/appletviewer game.html
+<br>
+cd JavaApps/cm3
+../../j2sdk-image/bin/appletviewer CaffeineMark30.html
+</b></code></pre>
+
+
+</body></html>

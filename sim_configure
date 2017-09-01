@@ -1,0 +1,17 @@
+#!/bin/sh -e
+# check we have a simulator tree
+if [ ! -d ../simulator ] ; then
+  echo "downloading aarch64 simulator code from sourceforge into directory ../simulator"
+  (cd .. ; hg clone http://hg.code.sourceforge.net/p/smallaarch64sim/code simulator)
+fi
+
+if [ ! -d ../binutils ] ; then
+  echo "downloading aarch64 binutils code from sourceforge into directory ../binutils"
+  echo "by executing the following command"
+  (cd .. ; hg clone http://hg.code.sourceforge.net/p/binutilsaarch64/code binutils)
+fi
+
+# check we have a binutils tree
+
+# now configure a jdk8 build using the small aarch64 simulator
+sh ./configure --with-debug-level=slowdebug --with-boot-jdk=/usr/lib/jvm/java-1.7.0-openjdk --with-jvm-variants=client --with-sys-root=/ --openjdk-target=aarch64-oe-linux --disable-zip-debug-info
